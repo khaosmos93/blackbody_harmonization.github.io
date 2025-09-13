@@ -270,7 +270,7 @@ let ac=null, master=null, playing=false, timer=null, seq=[], seqIdx=0;
 async function unlockAudio() {
   if (!ac) {
     const Ctx = window.AudioContext || window.webkitAudioContext;
-    ac = new Ctx(); // ← minimal constructor for iOS reliability
+    ac = new Ctx();
     master = ac.createGain();
     master.gain.value = +gainEl.value;
     master.connect(ac.destination);
@@ -313,7 +313,7 @@ function hardUnlockBeep() {
     osc.stop(t + 0.25);
   }
 
-  // 2) 1-frame non-zero buffer (ensures real sample data goes through)
+  // 2) 1-frame non-zero buffer
   {
     const buf = ac.createBuffer(1, 2048, ac.sampleRate);
     const ch = buf.getChannelData(0);
@@ -355,35 +355,41 @@ function testBeep() {
 }
 
 
-// status button behavior (stubborn unlock in one gesture)
+// status button behavior (synchronous unlock in same gesture)
 const statusEl = document.getElementById('status');
 if (statusEl) statusEl.textContent = 'Enable sound';
 
-async function doEnableSoundStrong() {
+// NOTE: no async/await inside this function to keep user gesture intact
+function doEnableSoundStrong() {
   try {
-    await unlockAudio();            // create/resume context
-    ensureAudio();
-
-    // Immediate, audible blip at currentTime (iPhone/Safari-friendly)
-    if (ac && master) {
-      const now = ac.currentTime;
-      const osc = ac.createOscillator();
-      const g   = ac.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = 1000;     // very audible on phone speakers
-      g.gain.setValueAtTime(0.001, now);
-      g.gain.linearRampToValueAtTime(0.5,  now + 0.03);
-      g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-      osc.connect(g).connect(master);
-      osc.start(now);
-      osc.stop(now + 0.45);
+    // Create context synchronously if needed
+    if (!ac) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      ac = new Ctx();
+      master = ac.createGain();
+      master.gain.value = +gainEl.value || 0.25;
+      master.connect(ac.destination);
     }
 
-    // Keep multi-probe unlock too
+    // Start an immediate, audible blip *before* any Promise microtask
+    const now = ac.currentTime;
+    const osc = ac.createOscillator();
+    const g   = ac.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 1000; // very audible on phone speakers
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(0.5,  now + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc.connect(g).connect(master);
+    osc.start(now);
+    osc.stop(now + 0.45);
+
+    // Also fire the multi-probe unlock immediately
     hardUnlockBeep();
 
-    // Safety resume after starting nodes (covers WebKit quirks)
-    try { await ac.resume(); } catch(e){}
+    // Try resume, but don't await it here
+    ac.resume && ac.resume().catch(()=>{});
+
     statusEl.textContent = (ac && ac.state) ? `Audio ready (${ac.state})` : 'Audio ready';
     statusEl.disabled = true;
   } catch (err) {
