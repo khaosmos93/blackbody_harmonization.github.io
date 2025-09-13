@@ -15,11 +15,11 @@
   }
   #drawCanvas { pointer-events:auto; }
   #toolbar {
-    position:absolute; left:12px; top:12px; z-index:10;
+    position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 68px); z-index:10;
     background:var(--panel); border:1px solid var(--b); border-radius:12px; padding:10px; backdrop-filter: blur(6px);
     max-width:min(92vw, 560px);
   }
-  #toggle { position:absolute; left:12px; top:12px; z-index:11; border:none; border-radius:999px; padding:10px 12px; background:var(--panel); color:#fff; cursor:pointer; backdrop-filter: blur(6px); }
+  #toggle { position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 32px); z-index:11; border:none; border-radius:999px; padding:10px 12px; background:var(--panel); color:#fff; cursor:pointer; backdrop-filter: blur(6px); }
   #toggle small { opacity:.8; }
   #toolbar[hidden]{ display:none; }
   .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
@@ -46,7 +46,7 @@
 
     <div id="toolbar">
       <div class="row" style="margin-bottom:6px">
-        <strong>--- Blackbody Harmonization</strong>
+        <strong>Blackbody Harmonization</strong>
         <span class="pill mono" id="dim">—</span>
         <span class="pill mono">Pixels/sec: <span id="ppsVal">3</span></span>
       </div>
