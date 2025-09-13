@@ -15,7 +15,7 @@
   }
   #drawCanvas { pointer-events:auto; }
   #toolbar {
-    position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 110px); z-index:10;
+    position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 110px); z-index:9999;
     background:var(--panel); border:1px solid var(--b); border-radius:12px; padding:10px; backdrop-filter: blur(6px);
     max-width:min(92vw, 560px);
     max-height: calc(100dvh - (env(safe-area-inset-top) + 68px) - 16px);
@@ -24,6 +24,7 @@
   #toggle { position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 73px); z-index:11; border:none; border-radius:999px; padding:10px 12px; background:var(--panel); color:#fff; cursor:pointer; backdrop-filter: blur(6px); }
   #toggle small { opacity:.8; }
   #toolbar[hidden]{ display:none; }
+  #status { pointer-events: auto; }
   .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   .col { display:flex; flex-direction:column; gap:8px; }
   label { display:inline-flex; align-items:center; gap:6px; }
@@ -362,8 +363,26 @@ async function doEnableSoundStrong() {
   try {
     await unlockAudio();            // create/resume context
     ensureAudio();
-    hardUnlockBeep();               // fire 3 audible probes
-    // small safety resume after starting nodes (covers a few WebKit quirks)
+
+    // Immediate, audible blip at currentTime (iPhone/Safari-friendly)
+    if (ac && master) {
+      const now = ac.currentTime;
+      const osc = ac.createOscillator();
+      const g   = ac.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 1000;     // 1 kHz = very audible on phone speakers
+      g.gain.setValueAtTime(0.001, now);
+      g.gain.linearRampToValueAtTime(0.5,  now + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc.connect(g).connect(master);
+      osc.start(now);
+      osc.stop(now + 0.45);
+    }
+
+    // Keep your multi-probe unlock too (runs alongside the immediate blip)
+    hardUnlockBeep();
+
+    // Safety resume after starting nodes (covers WebKit quirks)
     try { await ac.resume(); } catch(e){}
     statusEl.textContent = (ac && ac.state) ? `Audio ready (${ac.state})` : 'Audio ready';
     statusEl.disabled = true;
@@ -376,6 +395,10 @@ async function doEnableSoundStrong() {
 statusEl?.addEventListener('click', doEnableSoundStrong);
 statusEl?.addEventListener('touchstart', (e) => {
   e.preventDefault();               // ensure click fires on iOS
+  doEnableSoundStrong();
+}, { passive: false });
+statusEl?.addEventListener('touchend', (e) => {
+  e.preventDefault();
   doEnableSoundStrong();
 }, { passive: false });
 
