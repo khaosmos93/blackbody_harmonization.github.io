@@ -49,6 +49,8 @@
         <strong>Blackbody Harmonization</strong>
         <span class="pill mono" id="dim">—</span>
         <span class="pill mono">Pixels/sec: <span id="ppsVal">3</span></span>
+        <!-- moved status to the top bar -->
+        <span id="status" class="muted mono">Enable sound</span>
       </div>
 
       <div class="col" style="gap:10px">
@@ -127,7 +129,7 @@
           <button id="play" disabled>Play Path/Dots</button>
           <button id="stop" disabled>Stop</button>
           <button id="download" disabled>Download .json</button>
-          <span id="status" class="muted mono">—</span>
+          <!-- removed old status span from here -->
         </div>
         <div class="row">
           <span class="badge">Array: <span id="arrLen">—</span></span>
@@ -198,7 +200,7 @@ $('file').addEventListener('change', async (e)=>{
   imageData = imgCtx.getImageData(0,0,imgW,imgH);
   $('imgInfo').textContent = f.name; $('dim').textContent = `${imgW}×${imgH}px`;
   $('makeArray').disabled = false; $('play').disabled = false; $('download').disabled = true;
-  pathPts = []; dots = []; redrawOverlay(); $('pathCount').textContent='0'; $('dotCount').textContent='0'; $('status').textContent='Image ready. Live or Path/Dots.';
+  pathPts = []; dots = []; redrawOverlay(); $('pathCount').textContent='0'; $('dotCount').textContent='0'; $('status').textContent='Enable sound';
 });
 
 /* ===== Tools ===== */
@@ -242,7 +244,7 @@ $('makeArray').addEventListener('click', ()=>{
   if (!imgW) return;
   const data=imageData.data, N=imgW*imgH, out=new Uint8Array(3*N); let k=0;
   for (let i=0;i<data.length;i+=4){ out[k++]=data[i]; out[k++]=data[i+1]; out[k++]=data[i+2]; }
-  arrRGB=out; $('arrLen').textContent=`${out.length} (3 × ${N})`; $('preview').textContent=Array.from(out.slice(0,48)).join(', '); $('download').disabled=false; $('status').textContent='3×N array built.';
+  arrRGB=out; $('arrLen').textContent=`${out.length} (3 × ${N})`; $('preview').textContent=Array.from(out.slice(0,48)).join(', '); $('download').disabled=false; $('status').textContent='Enable sound';
 });
 $('download').addEventListener('click', ()=>{ if (!arrRGB) return; const blob=new Blob([JSON.stringify(Array.from(arrRGB))],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='rgb_array_3xN.json'; a.click(); });
 
@@ -259,9 +261,55 @@ const gainEl=$('gain'), gainVal=$('gainVal'); gainEl.oninput=()=>gainVal.textCon
 const mix1=$('mix1'), mix2=$('mix2'), mix3=$('mix3'); const m1=$('m1'), m2=$('m2'), m3=$('m3');
 [mix1,mix2,mix3].forEach(sl=>sl.addEventListener('input',()=>{ m1.textContent=(+mix1.value).toFixed(2); m2.textContent=(+mix2.value).toFixed(2); m3.textContent=(+mix3.value).toFixed(2);} ));
 
-/* ===== WebAudio & Voices ===== */
+/* ===== WebAudio unlock for mobile ===== */
 let ac=null, master=null, playing=false, timer=null, seq=[], seqIdx=0;
-function ensureAudio(){ if(!ac){ ac=new (window.AudioContext||window.webkitAudioContext)(); master=ac.createGain(); master.gain.value=+gainEl.value; master.connect(ac.destination);} }
+
+async function unlockAudio() {
+  if (!ac) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    ac = new Ctx({ latencyHint: 'interactive' });
+    master = ac.createGain();
+    master.gain.value = +gainEl.value;
+    master.connect(ac.destination);
+  }
+  try {
+    const silent = ac.createBuffer(1, 1, ac.sampleRate);
+    const src = ac.createBufferSource();
+    src.buffer = silent;
+    src.connect(master);
+    src.start(0);
+  } catch (_) {}
+  if (ac.state === 'suspended' || ac.state === 'interrupted') {
+    try { await ac.resume(); } catch (_) {}
+  }
+}
+
+function ensureAudio() {
+  if (!ac) return;
+  if (ac.state === 'suspended' || ac.state === 'interrupted') {
+    ac.resume()?.catch(()=>{});
+  }
+}
+
+// Put the initial hint at the top and change text
+const statusEl = document.getElementById('status');
+if (statusEl) statusEl.textContent = 'Enable sound';
+
+const firstGesture = async () => {
+  await unlockAudio();
+  if (statusEl) statusEl.textContent = 'Audio ready';
+};
+['pointerdown','touchstart','keydown'].forEach(ev =>
+  document.addEventListener(ev, firstGesture, { once:true, passive:true })
+);
+
+document.addEventListener('visibilitychange', async () => {
+  if (!ac) return;
+  if (document.visibilityState === 'visible' && (ac.state === 'suspended' || ac.state === 'interrupted')) {
+    try { await ac.resume(); } catch (_) {}
+  }
+});
+
 gainEl.addEventListener('input', ()=>{ if(master) master.gain.value=+gainEl.value; });
 
 function getRGBat(x,y){
@@ -303,7 +351,7 @@ function playPixelNow(x,y, velocity=1){
   const t=ac.currentTime + 0.005;
 
   const env=ac.createGain(); const sus=$('sustain').checked;
-  const peak = Math.max(0.02, Math.min(1, velocity)) ; // simple velocity → gain
+  const peak = Math.max(0.02, Math.min(1, velocity)) ;
   env.gain.setValueAtTime(0, t);
   env.gain.linearRampToValueAtTime(peak, t+0.01);
   if (sus){ env.gain.setValueAtTime(peak, t+dur); } else { env.gain.exponentialRampToValueAtTime(0.001, t+dur); }
@@ -331,7 +379,8 @@ let lastLiveTime = 0;
 drawCanvas.addEventListener('pointerdown', async (e)=>{
   if (!imageData) return;
   if (!liveChk.checked) return; // only in live mode
-  ensureAudio(); await ac.resume();
+  await unlockAudio();
+  ensureAudio();
   liveArmed = true;
   const [x,y]=toImageXY(e, drawCanvas);
   const v = e.pressure ? Math.min(1, Math.max(0.05, e.pressure)) : 1;
@@ -339,7 +388,6 @@ drawCanvas.addEventListener('pointerdown', async (e)=>{
 });
 drawCanvas.addEventListener('pointermove', (e)=>{
   if (!imageData || !liveChk.checked || !liveArmed) return;
-  // throttle by pps
   const now = performance.now();
   const pps = Math.max(1, parseInt($('pps').value||'12',10));
   const intervalMs = 1000/pps;
@@ -353,23 +401,24 @@ drawCanvas.addEventListener('pointermove', (e)=>{
   drawCanvas.addEventListener(ev, ()=>{ liveArmed = false; });
 });
 
-/* ===== Path/Dots sequencer (unchanged) ===== */
+/* ===== Path/Dots sequencer (unchanged logic; mobile-safe unlock) ===== */
 function buildSequence(){ const src=document.querySelector('input[name="source"]:checked').value; return src==='path'? pathPts.slice() : dots.slice(); }
 
 function drawCursor(pt){
   redrawOverlay();
   if (!pt) return;
   drawCtx.strokeStyle = '#ffd400';
-  drawCtx.lineWidth = 4;                 // ← thickness
+  drawCtx.lineWidth = 4;
   drawCtx.beginPath();
-  drawCtx.arc(pt[0], pt[1], 20, 0, Math.PI*2); // ← radius
+  drawCtx.arc(pt[0], pt[1], 20, 0, Math.PI*2);
   drawCtx.stroke();
 }
 
 $('play').addEventListener('click', async ()=>{
   if (!imageData) return;
-  const srcSeq=buildSequence(); if (!srcSeq.length){ $('status').textContent='Draw a path or add dots first.'; return; }
-  ensureAudio(); await ac.resume();
+  const srcSeq=buildSequence(); if (!srcSeq.length){ $('status').textContent='Enable sound'; return; }
+  await unlockAudio();
+  ensureAudio();
   playing=true; let seqIdx=0; $('stop').disabled=false; $('play').disabled=true; $('status').textContent='Playing…';
 
   const key=$('key').value, scale=$('scale').value;
@@ -415,7 +464,7 @@ $('play').addEventListener('click', async ()=>{
 
 function stopPlayback(){
   playing=false; if (timer) clearTimeout(timer);
-  $('status').textContent='Stopped.'; $('play').disabled=false; $('stop').disabled=true; drawCursor(null);
+  $('status').textContent='Enable sound'; $('play').disabled=false; $('stop').disabled=true; drawCursor(null);
 }
 $('stop').addEventListener('click', stopPlayback);
 </script>
