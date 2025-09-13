@@ -8,20 +8,26 @@
   :root { --b:#333; --t:#fff; --mut:#aaa; --panel:rgba(0,0,0,.6); --accent:#00d1ff; --accent2:#ff4d4f; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
   html, body { height:100%; }
   body { margin:0; color:var(--t); background:#000; overflow:hidden; }
-  #stage { position:relative; width:100vw; height:100vh; overflow:hidden; background:#000; }
+  /* use dynamic viewport height to avoid mobile chrome/safari UI cropping */
+  #stage { position:relative; width:100vw; height:100dvh; overflow:hidden; background:#000; }
   #imgCanvas, #drawCanvas {
     position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-    display:block; max-width:100vw; max-height:100vh; width:auto; height:auto;
+    display:block; max-width:100vw; max-height:100dvh; width:auto; height:auto;
   }
   #drawCanvas { pointer-events:auto; }
+
+  /* Responsive toolbar positioning (safe-area aware) */
   #toolbar {
-    position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 110px); z-index:9999;
+    position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 52px); z-index:9999;
     background:var(--panel); border:1px solid var(--b); border-radius:12px; padding:10px; backdrop-filter: blur(6px);
     max-width:min(92vw, 560px);
-    max-height: calc(100dvh - (env(safe-area-inset-top) + 68px) - 16px);
+    /* keep inside viewport with dynamic height budget */
+    max-height: calc(100dvh - (env(safe-area-inset-top) + 24px) - 16px);
     overflow: auto; -webkit-overflow-scrolling: touch;
   }
-  #toggle { position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 73px); z-index:11; border:none; border-radius:999px; padding:10px 12px; background:var(--panel); color:#fff; cursor:pointer; backdrop-filter: blur(6px); }
+
+  /* Toggle anchored to the same top safe-area so it doesn't crop */
+  #toggle { position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 12px); z-index:10000; border:none; border-radius:999px; padding:10px 12px; background:var(--panel); color:#fff; cursor:pointer; backdrop-filter: blur(6px); }
   #toggle small { opacity:.8; }
   #toolbar[hidden]{ display:none; }
   #status { pointer-events: auto; }
@@ -52,8 +58,9 @@
         <strong>Blackbody Harmonization</strong>
         <span class="pill mono" id="dim">—</span>
         <span class="pill mono">Pixels/sec: <span id="ppsVal">3</span></span>
-        <!-- status is now a button (clickable on mobile) -->
+        <!-- status is now a button (clickable on mobile) with extra hint -->
         <button id="status" type="button" class="pill mono">Enable sound</button>
+        <span class="muted mono" style="white-space:nowrap;">(Check mute switch / volume if you don’t hear sound)</span>
       </div>
 
       <div class="col" style="gap:10px">
