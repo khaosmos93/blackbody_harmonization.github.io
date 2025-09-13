@@ -7,105 +7,59 @@
 <style>
   :root { --b:#333; --t:#fff; --mut:#aaa; --panel:rgba(0,0,0,.6); --accent:#00d1ff; --accent2:#ff4d4f; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
   html, body { height:100%; }
-  body {
-    margin:0;
-    color:var(--t);
-    background:#000;
-    overflow:hidden; /* full-bleed stage */
-  }
-
-  /* Stage = image + drawing overlay */
-  #stage {
-    position:relative;
-    width:100vw;
-    height:100vh;
-    overflow:hidden;
-    background:#000;
-  }
-  /* We keep canvases pixel-accurate internally; CSS scales them to fit while preserving aspect */
+  body { margin:0; color:var(--t); background:#000; overflow:hidden; }
+  #stage { position:relative; width:100vw; height:100vh; overflow:hidden; background:#000; }
   #imgCanvas, #drawCanvas {
-    position:absolute; left:50%; top:50%;
-    transform:translate(-50%,-50%);
-    display:block;
-    max-width:100vw; max-height:100vh;
-    width:auto; height:auto;
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    display:block; max-width:100vw; max-height:100vh; width:auto; height:auto;
   }
-  #imgCanvas { background:#000; }
   #drawCanvas { pointer-events:auto; }
-
-  /* Floating toolbar */
   #toolbar {
-    position:absolute; left:12px; top:12px;
-    z-index:10;
-    background:var(--panel);
-    border:1px solid var(--b);
-    border-radius:12px;
-    padding:10px;
-    backdrop-filter: blur(6px);
-    max-width:min(92vw, 520px);
+    position:absolute; left:12px; top:12px; z-index:10;
+    background:var(--panel); border:1px solid var(--b); border-radius:12px; padding:10px; backdrop-filter: blur(6px);
+    max-width:min(92vw, 560px);
   }
-  #toolbar[hidden] { display:none; }
-  #barTop {
-    display:flex; align-items:center; gap:8px;
-    margin-bottom:8px;
-  }
-  #toggle {
-    position:absolute; left:12px; top:12px; z-index:11;
-    border:none; border-radius:999px; padding:10px 12px;
-    background:var(--panel); color:#fff; cursor:pointer;
-    backdrop-filter: blur(6px);
-  }
+  #toggle { position:absolute; left:12px; top:12px; z-index:11; border:none; border-radius:999px; padding:10px 12px; background:var(--panel); color:#fff; cursor:pointer; backdrop-filter: blur(6px); }
   #toggle small { opacity:.8; }
-
+  #toolbar[hidden]{ display:none; }
   .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   .col { display:flex; flex-direction:column; gap:8px; }
   label { display:inline-flex; align-items:center; gap:6px; }
-  input[type="file"] { color:#fff; }
-  input[type="number"], select {
-    background:#111; color:#fff; border:1px solid #444; border-radius:8px; padding:4px 6px;
-  }
+  input[type="number"], select { background:#111; color:#fff; border:1px solid #444; border-radius:8px; padding:4px 6px; }
   input[type="range"] { width:140px; }
-  button {
-    padding:8px 12px; border-radius:10px; border:1px solid #444; background:#111; color:#fff; cursor:pointer;
-  }
+  button { padding:8px 12px; border-radius:10px; border:1px solid #444; background:#111; color:#fff; cursor:pointer; }
   button:disabled { opacity:.5; cursor:not-allowed; }
   .pill { display:inline-block; padding:2px 8px; border:1px solid #444; border-radius:999px; background:#111; }
   .muted { color:var(--mut); }
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .chip { border:1px dashed #444; padding:4px 8px; border-radius:10px; }
-
-  /* Path/dots styling */
-  .legend { font-size:12px; opacity:.9; }
   .badge { font-size:12px; padding:2px 6px; border-radius:6px; background:#111; border:1px solid #444; }
-
-  /* Cursor halo while playing */
-  .cursorRing { stroke:#ffd400; stroke-width:2; fill:transparent; }
-
-  /* Small screen tweaks */
-  @media (max-width:600px) {
-    #toolbar { max-width:94vw; }
-    input[type="range"]{ width:110px; }
-  }
+  @media (max-width:600px){ #toolbar{ max-width:94vw; } input[type="range"]{ width:110px; } }
 </style>
 </head>
 <body>
-  <!-- Toggle button (collapsed toolbar) -->
-  <button id="toggle" aria-expanded="true">☰ <small>tools</small></button>
+  <button id="toggle" aria-expanded="true">☰</button>
 
-  <!-- Stage -->
   <div id="stage">
     <canvas id="imgCanvas"></canvas>
     <canvas id="drawCanvas"></canvas>
 
-    <!-- Floating overlay toolbar -->
     <div id="toolbar">
-      <div id="barTop" class="row">
-        <strong>Blackbody Harmonization</strong>
+      <div class="row" style="margin-bottom:6px">
+        <strong>--- Blackbody Harmonization</strong>
         <span class="pill mono" id="dim">—</span>
-        <span class="pill mono">Pixels/sec: <span id="ppsVal">2</span></span>
+        <span class="pill mono">Pixels/sec: <span id="ppsVal">3</span></span>
       </div>
 
       <div class="col" style="gap:10px">
+        <!-- Live Instrument -->
+        <div class="row">
+          <label><input type="checkbox" id="live" checked> Live mode (play under cursor)</label>
+          <label>Brush(px) <input id="brush" type="number" min="0" max="50" value="2" style="width:70px"></label>
+          <label><input type="checkbox" id="sustain"> Sustain</label>
+          <span class="muted mono">Tip: press harder on stylus/touch for louder notes</span>
+        </div>
+
         <!-- 1) Load -->
         <div class="row">
           <label class="pill">Load image <input type="file" id="file" accept="image/*"></label>
@@ -152,9 +106,9 @@
           <label>Oct <input id="octaves" type="number" min="1" max="8" value="4" style="width:56px"></label>
         </div>
         <div class="row">
-          <label>Pixels/sec <input id="pps" type="range" min="1" max="60" value="2"></label>
+          <label>Pixels/sec <input id="pps" type="range" min="1" max="60" value="3"></label>
           <label>Gain <input id="gain" type="range" min="0" max="1" step="0.01" value="0.25"><span id="gainVal" class="mono">0.25</span></label>
-          <label>Length(ms) <input id="ms" type="number" min="20" max="800" value="300" style="width:72px"></label>
+          <label>Length(ms) <input id="ms" type="number" min="20" max="800" value="120" style="width:72px"></label>
         </div>
         <div class="row">
           <label>Harmonics 1× <input id="mix1" type="range" min="0" max="1" step="0.01" value="1"><span id="m1" class="mono">1.00</span></label>
@@ -170,7 +124,7 @@
         <!-- 4) Controls & debug -->
         <div class="row">
           <button id="makeArray" disabled>Make 3×N array</button>
-          <button id="play" disabled>Play</button>
+          <button id="play" disabled>Play Path/Dots</button>
           <button id="stop" disabled>Stop</button>
           <button id="download" disabled>Download .json</button>
           <span id="status" class="muted mono">—</span>
@@ -186,21 +140,20 @@
   </div>
 
 <script>
-/* ===== toggle toolbar ===== */
+/* ===== Toolbar toggle ===== */
 const toolbar = document.getElementById('toolbar');
 const toggleBtn = document.getElementById('toggle');
 let open = true;
 toggleBtn.addEventListener('click', ()=>{
-  open = !open;
-  toolbar.hidden = !open;
+  open = !open; toolbar.hidden = !open;
   toggleBtn.setAttribute('aria-expanded', String(open));
-  toggleBtn.innerHTML = open ? '☰ <small>tools</small>' : '☷ <small>show</small>';
+  toggleBtn.innerHTML = open ? '☰' : '☷ <small>show</small>';
 });
 
 /* ===== DOM helpers ===== */
 const $ = id => document.getElementById(id);
 
-/* ===== Canvases & scaling ===== */
+/* ===== Canvases ===== */
 const imgCanvas = $('imgCanvas');
 const imgCtx = imgCanvas.getContext('2d', { willReadFrequently: true });
 const drawCanvas = $('drawCanvas');
@@ -209,13 +162,11 @@ const drawCtx = drawCanvas.getContext('2d');
 let imgW=0, imgH=0, arrRGB=null, imageData=null;
 let pathPts=[], dots=[], drawing=false, lastPt=null, tool='path';
 
-/* Keep canvases' intrinsic size = image dimensions; CSS centers & fits */
 function setCanvasIntrinsicSize(w,h){
-  imgCanvas.width = w; imgCanvas.height = h;
-  drawCanvas.width = w; drawCanvas.height = h;
+  imgCanvas.width=w; imgCanvas.height=h;
+  drawCanvas.width=w; drawCanvas.height=h;
 }
 
-/* Convert client (pointer) coords to image pixel coords */
 function toImageXY(e, canvas){
   const r = canvas.getBoundingClientRect();
   const scaleX = canvas.width / r.width;
@@ -225,50 +176,29 @@ function toImageXY(e, canvas){
   return [Math.max(0, Math.min(canvas.width-1, x)), Math.max(0, Math.min(canvas.height-1, y))];
 }
 
-/* Redraw path & dots */
 function redrawOverlay() {
   drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
-  // path
   if (pathPts.length > 1) {
-    drawCtx.lineWidth = 2;
-    drawCtx.strokeStyle = '#00d1ff';
-    drawCtx.beginPath();
-    drawCtx.moveTo(pathPts[0][0], pathPts[0][1]);
+    drawCtx.lineWidth = 5; drawCtx.strokeStyle = '#00d1ff';
+    drawCtx.beginPath(); drawCtx.moveTo(pathPts[0][0], pathPts[0][1]);
     for (let i=1;i<pathPts.length;i++) drawCtx.lineTo(pathPts[i][0], pathPts[i][1]);
     drawCtx.stroke();
   }
-  // dots
-  drawCtx.fillStyle = '#ff4d4f';
-  dots.forEach(([x,y])=>{
-    drawCtx.beginPath();
-    drawCtx.arc(x, y, 4, 0, Math.PI*2);
-    drawCtx.fill();
-  });
+  drawCtx.fillStyle = '#00d1ff';
+  dots.forEach(([x,y])=>{ drawCtx.beginPath(); drawCtx.arc(x, y, 20, 0, Math.PI*2); drawCtx.fill(); });
 }
 
 /* ===== Image load ===== */
 $('file').addEventListener('change', async (e)=>{
   const f = e.target.files?.[0]; if (!f) return;
-  const img = new Image();
-  img.src = URL.createObjectURL(f);
-  await img.decode();
-
+  const img = new Image(); img.src = URL.createObjectURL(f); await img.decode();
   imgW = img.naturalWidth; imgH = img.naturalHeight;
   setCanvasIntrinsicSize(imgW, imgH);
   imgCtx.drawImage(img, 0, 0, imgW, imgH);
   imageData = imgCtx.getImageData(0,0,imgW,imgH);
-
-  $('imgInfo').textContent = f.name;
-  $('dim').textContent = `${imgW}×${imgH}px`;
-
-  $('makeArray').disabled = false;
-  $('play').disabled = false;
-  $('download').disabled = true;
-
-  pathPts = []; dots = []; redrawOverlay();
-  $('pathCount').textContent = '0';
-  $('dotCount').textContent = '0';
-  $('status').textContent = 'Image ready. Draw or place dots.';
+  $('imgInfo').textContent = f.name; $('dim').textContent = `${imgW}×${imgH}px`;
+  $('makeArray').disabled = false; $('play').disabled = false; $('download').disabled = true;
+  pathPts = []; dots = []; redrawOverlay(); $('pathCount').textContent='0'; $('dotCount').textContent='0'; $('status').textContent='Image ready. Live or Path/Dots.';
 });
 
 /* ===== Tools ===== */
@@ -278,52 +208,30 @@ drawCanvas.addEventListener('pointerdown', e=>{
   if (!imgW) return;
   drawCanvas.setPointerCapture(e.pointerId);
   const [x,y] = toImageXY(e, drawCanvas);
-  if (tool === 'path') {
-    drawing = true; lastPt = [x,y];
-    pathPts.push([x,y]);
-    $('pathCount').textContent = String(pathPts.length);
-    redrawOverlay();
-  } else {
-    dots.push([x,y]);
-    $('dotCount').textContent = String(dots.length);
-    redrawOverlay();
-  }
+  if (tool === 'path') { drawing = true; lastPt=[x,y]; pathPts.push([x,y]); $('pathCount').textContent=String(pathPts.length); redrawOverlay(); }
+  else { dots.push([x,y]); $('dotCount').textContent=String(dots.length); redrawOverlay(); }
 });
 
 drawCanvas.addEventListener('pointermove', e=>{
   if (!imgW) return;
-  if (e.shiftKey && tool === 'path') {
+  if (e.shiftKey && tool==='path') {
     const [x,y] = toImageXY(e, drawCanvas);
-    const rad = 8;
-    pathPts = pathPts.filter(([px,py]) => Math.hypot(px-x, py-y) > rad);
-    $('pathCount').textContent = String(pathPts.length);
-    redrawOverlay();
-    return;
+    const rad = 20; pathPts = pathPts.filter(([px,py]) => Math.hypot(px-x, py-y) > rad);
+    $('pathCount').textContent = String(pathPts.length); redrawOverlay(); return;
   }
-  if (!drawing || tool !== 'path') return;
+  if (!drawing || tool!=='path') return;
   const [x,y] = toImageXY(e, drawCanvas);
   const step = Number($('pathStep').value)||2;
-  const [lx,ly] = lastPt;
-  const dx = x - lx, dy = y - ly;
-  const dist = Math.hypot(dx, dy);
+  const [lx,ly] = lastPt; const dx = x-lx, dy = y-ly; const dist = Math.hypot(dx,dy);
   if (dist >= step) {
     const n = Math.floor(dist / step);
-    for (let i=1;i<=n;i++) {
-      const px = lx + dx * (i/n);
-      const py = ly + dy * (i/n);
-      pathPts.push([px,py]);
-    }
-    lastPt = [x,y];
-    $('pathCount').textContent = String(pathPts.length);
-    redrawOverlay();
+    for (let i=1;i<=n;i++) { const px=lx+dx*(i/n), py=ly+dy*(i/n); pathPts.push([px,py]); }
+    lastPt=[x,y]; $('pathCount').textContent=String(pathPts.length); redrawOverlay();
   }
 });
 
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>{
-  drawCanvas.addEventListener(ev, e=>{
-    drawCanvas.releasePointerCapture?.(e.pointerId);
-    drawing = false; lastPt = null;
-  });
+  drawCanvas.addEventListener(ev, e=>{ drawCanvas.releasePointerCapture?.(e.pointerId); drawing=false; lastPt=null; });
 });
 
 $('clearPath').addEventListener('click', ()=>{ pathPts=[]; $('pathCount').textContent='0'; redrawOverlay(); });
@@ -332,144 +240,173 @@ $('clearDots').addEventListener('click', ()=>{ dots=[]; $('dotCount').textConten
 /* ===== Full 3×N array (optional export) ===== */
 $('makeArray').addEventListener('click', ()=>{
   if (!imgW) return;
-  const data = imageData.data;
-  const N = imgW*imgH;
-  const out = new Uint8Array(3*N);
-  let k=0;
-  for (let i=0;i<data.length;i+=4) { out[k++]=data[i]; out[k++]=data[i+1]; out[k++]=data[i+2]; }
-  arrRGB = out;
-  $('arrLen').textContent = `${out.length} (3 × ${N})`;
-  $('preview').textContent = Array.from(out.slice(0,48)).join(', ');
-  $('download').disabled = false;
-  $('status').textContent = '3×N array built (export available).';
+  const data=imageData.data, N=imgW*imgH, out=new Uint8Array(3*N); let k=0;
+  for (let i=0;i<data.length;i+=4){ out[k++]=data[i]; out[k++]=data[i+1]; out[k++]=data[i+2]; }
+  arrRGB=out; $('arrLen').textContent=`${out.length} (3 × ${N})`; $('preview').textContent=Array.from(out.slice(0,48)).join(', '); $('download').disabled=false; $('status').textContent='3×N array built.';
 });
-$('download').addEventListener('click', ()=>{
-  if (!arrRGB) return;
-  const blob=new Blob([JSON.stringify(Array.from(arrRGB))],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='rgb_array_3xN.json'; a.click();
-});
+$('download').addEventListener('click', ()=>{ if (!arrRGB) return; const blob=new Blob([JSON.stringify(Array.from(arrRGB))],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='rgb_array_3xN.json'; a.click(); });
 
-/* ===== Scale & audio ===== */
-const ROOTS = {'C':0,'C#':1,'D':2,'D#':3,'E':4,'F':5,'F#':6,'G':7,'G#':8,'A':9,'A#':10,'B':11};
-const SCALES = {
-  major:[0,2,4,5,7,9,11],
-  natural_minor:[0,2,3,5,7,8,10],
-  dorian:[0,2,3,5,7,9,10],
-  mixolydian:[0,2,4,5,7,9,10],
-  pentatonic_major:[0,2,4,7,9],
-  pentatonic_minor:[0,3,5,7,10],
-  blues_minor:[0,3,5,6,7,10]
-};
-function buildScaleMidi(rootName, scaleName, baseOct=3, octaves=4){
-  const root=ROOTS[rootName]??0, deg=SCALES[scaleName]??SCALES.major;
-  const notes=[]; for(let o=0;o<octaves;o++){ const base=(baseOct+o)*12; for(const d of deg) notes.push(base+root+d); }
-  return notes;
-}
-function valueToMidi(v, list){ const idx = Math.floor((v/256)*list.length); return list[Math.min(idx, list.length-1)]; }
-const midiToFreq = m => 440*Math.pow(2,(m-69)/12);
+/* ===== Scale & Audio ===== */
+const ROOTS={'C':0,'C#':1,'D':2,'D#':3,'E':4,'F':5,'F#':6,'G':7,'G#':8,'A':9,'A#':10,'B':11};
+const SCALES={ major:[0,2,4,5,7,9,11], natural_minor:[0,2,3,5,7,8,10], dorian:[0,2,3,5,7,9,10], mixolydian:[0,2,4,5,7,9,10], pentatonic_major:[0,2,4,7,9], pentatonic_minor:[0,3,5,7,10], blues_minor:[0,3,5,6,7,10] };
+function buildScaleMidi(rootName, scaleName, baseOct=3, octaves=4){ const root=ROOTS[rootName]??0, deg=SCALES[scaleName]??SCALES.major; const notes=[]; for(let o=0;o<octaves;o++){ const base=(baseOct+o)*12; for(const d of deg) notes.push(base+root+d); } return notes; }
+function valueToMidi(v, list){ const idx=Math.floor((v/256)*list.length); return list[Math.min(idx,list.length-1)]; }
+const midiToFreq=m=>440*Math.pow(2,(m-69)/12);
 
 /* UI mirrors */
 const ppsEl=$('pps'), ppsVal=$('ppsVal'); ppsEl.oninput=()=>ppsVal.textContent=ppsEl.value;
 const gainEl=$('gain'), gainVal=$('gainVal'); gainEl.oninput=()=>gainVal.textContent=(+gainEl.value).toFixed(2);
-const mix1=$('mix1'), mix2=$('mix2'), mix3=$('mix3');
-const m1=$('m1'), m2=$('m2'), m3=$('m3');
+const mix1=$('mix1'), mix2=$('mix2'), mix3=$('mix3'); const m1=$('m1'), m2=$('m2'), m3=$('m3');
 [mix1,mix2,mix3].forEach(sl=>sl.addEventListener('input',()=>{ m1.textContent=(+mix1.value).toFixed(2); m2.textContent=(+mix2.value).toFixed(2); m3.textContent=(+mix3.value).toFixed(2);} ));
 
+/* ===== WebAudio & Voices ===== */
 let ac=null, master=null, playing=false, timer=null, seq=[], seqIdx=0;
-function ensureAudio(){
-  if(!ac){
-    ac = new (window.AudioContext||window.webkitAudioContext)();
-    master = ac.createGain();
-    master.gain.value = +gainEl.value;
-    master.connect(ac.destination);
-  }
-}
+function ensureAudio(){ if(!ac){ ac=new (window.AudioContext||window.webkitAudioContext)(); master=ac.createGain(); master.gain.value=+gainEl.value; master.connect(ac.destination);} }
 gainEl.addEventListener('input', ()=>{ if(master) master.gain.value=+gainEl.value; });
 
-function getRGBat(x, y){
-  const ix = Math.max(0, Math.min(imgW-1, Math.round(x)));
-  const iy = Math.max(0, Math.min(imgH-1, Math.round(y)));
-  const idx = (iy*imgW + ix)*4;
-  const d = imageData.data;
+function getRGBat(x,y){
+  const ix=Math.max(0,Math.min(imgW-1,Math.round(x)));
+  const iy=Math.max(0,Math.min(imgH-1,Math.round(y)));
+  const idx=(iy*imgW+ix)*4; const d=imageData.data;
   return [d[idx], d[idx+1], d[idx+2]];
 }
 
-function buildSequence(){
-  const src = document.querySelector('input[name="source"]:checked').value;
-  return src === 'path' ? pathPts.slice() : dots.slice();
+function getAveragedRGB(cx,cy,r){
+  if (r<=0) return getRGBat(cx,cy);
+  const xmin=Math.max(0, Math.floor(cx-r)), xmax=Math.min(imgW-1, Math.ceil(cx+r));
+  const ymin=Math.max(0, Math.floor(cy-r)), ymax=Math.min(imgH-1, Math.ceil(cy+r));
+  let rr=0, gg=0, bb=0, count=0;
+  const r2=r*r;
+  for(let y=ymin;y<=ymax;y++){
+    const dy=y-cy; for(let x=xmin;x<=xmax;x++){
+      const dx=x-cx; if (dx*dx+dy*dy>r2) continue;
+      const idx=(y*imgW+x)*4, d=imageData.data;
+      rr+=d[idx]; gg+=d[idx+1]; bb+=d[idx+2]; count++;
+    }
+  }
+  if (!count) return getRGBat(cx,cy);
+  return [Math.round(rr/count), Math.round(gg/count), Math.round(bb/count)];
 }
 
-/* cursor ring */
-function drawCursor(pt){
-  redrawOverlay();
-  if (!pt) return;
-  drawCtx.strokeStyle='#ffd400';
-  drawCtx.lineWidth=2;
-  drawCtx.beginPath();
-  drawCtx.arc(pt[0], pt[1], 8, 0, Math.PI*2);
-  drawCtx.stroke();
-}
-
-/* schedule pixel → triad */
-function schedulePixelChord(time, r,g,b, midiList, noteDur, dets){
+/* Play a pixel (triad, with partials). velocity 0..1 scales envelope */
+function playPixelNow(x,y, velocity=1){
+  if (!imageData) return;
+  ensureAudio();
+  const key=$('key').value, scale=$('scale').value;
+  const baseOct=parseInt($('baseOct').value||'3',10);
+  const octaves=parseInt($('octaves').value||'4',10);
+  const midiList=buildScaleMidi(key, scale, baseOct, octaves);
+  const [r,g,b] = getAveragedRGB(x,y, Number($('brush').value)||0);
   const mids=[valueToMidi(r,midiList), valueToMidi(g,midiList), valueToMidi(b,midiList)];
-  const env=ac.createGain();
-  env.gain.setValueAtTime(0, time);
-  env.gain.linearRampToValueAtTime(1, time+0.01);
-  env.gain.exponentialRampToValueAtTime(0.001, time+noteDur);
+  const dur=Math.max(0.02, Math.min(0.8, (+$('ms').value||120)/1000));
+  const dets=[parseFloat($('detR').value||'0'), parseFloat($('detG').value||'0'), parseFloat($('detB').value||'0')];
+  const t=ac.currentTime + 0.005;
+
+  const env=ac.createGain(); const sus=$('sustain').checked;
+  const peak = Math.max(0.02, Math.min(1, velocity)) ; // simple velocity → gain
+  env.gain.setValueAtTime(0, t);
+  env.gain.linearRampToValueAtTime(peak, t+0.01);
+  if (sus){ env.gain.setValueAtTime(peak, t+dur); } else { env.gain.exponentialRampToValueAtTime(0.001, t+dur); }
   env.connect(master);
+
   const parts=[[1,+mix1.value],[2,+mix2.value],[3,+mix3.value]];
   mids.forEach((m,i)=>{
-    const baseF = midiToFreq(m);
+    const baseF=midiToFreq(m);
     parts.forEach(([mul,g])=>{
       if (g<=0) return;
-      const f = baseF*mul;
-      if (f >= ac.sampleRate/2 - 100) return;
-      const osc = ac.createOscillator();
-      osc.type='sine';
-      osc.frequency.setValueAtTime(f, time);
-      osc.detune.setValueAtTime(dets[i]||0, time);
+      const f=baseF*mul; if (f >= ac.sampleRate/2-100) return;
+      const osc=ac.createOscillator(); osc.type='sine';
+      osc.frequency.setValueAtTime(f, t); osc.detune.setValueAtTime(dets[i]||0, t);
       const gNode=ac.createGain(); gNode.gain.value=g;
       osc.connect(gNode).connect(env);
-      osc.start(time); osc.stop(time+noteDur+0.02);
+      osc.start(t); osc.stop(t + (sus? Math.max(dur,0.4): dur) + 0.03);
     });
   });
 }
 
-/* Play/stop */
+/* ===== Live Instrument mode ===== */
+const liveChk = $('live');
+let liveArmed = false;
+let lastLiveTime = 0;
+drawCanvas.addEventListener('pointerdown', async (e)=>{
+  if (!imageData) return;
+  if (!liveChk.checked) return; // only in live mode
+  ensureAudio(); await ac.resume();
+  liveArmed = true;
+  const [x,y]=toImageXY(e, drawCanvas);
+  const v = e.pressure ? Math.min(1, Math.max(0.05, e.pressure)) : 1;
+  playPixelNow(x,y,v);
+});
+drawCanvas.addEventListener('pointermove', (e)=>{
+  if (!imageData || !liveChk.checked || !liveArmed) return;
+  // throttle by pps
+  const now = performance.now();
+  const pps = Math.max(1, parseInt($('pps').value||'12',10));
+  const intervalMs = 1000/pps;
+  if (now - lastLiveTime < intervalMs) return;
+  lastLiveTime = now;
+  const [x,y]=toImageXY(e, drawCanvas);
+  const v = e.pressure ? Math.min(1, Math.max(0.05, e.pressure)) : 1;
+  playPixelNow(x,y,v);
+});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>{
+  drawCanvas.addEventListener(ev, ()=>{ liveArmed = false; });
+});
+
+/* ===== Path/Dots sequencer (unchanged) ===== */
+function buildSequence(){ const src=document.querySelector('input[name="source"]:checked').value; return src==='path'? pathPts.slice() : dots.slice(); }
+
+function drawCursor(pt){
+  redrawOverlay();
+  if (!pt) return;
+  drawCtx.strokeStyle = '#ffd400';
+  drawCtx.lineWidth = 4;                 // ← thickness
+  drawCtx.beginPath();
+  drawCtx.arc(pt[0], pt[1], 20, 0, Math.PI*2); // ← radius
+  drawCtx.stroke();
+}
+
 $('play').addEventListener('click', async ()=>{
   if (!imageData) return;
-  const srcSeq = buildSequence();
-  if (srcSeq.length === 0) { $('status').textContent='Draw a path or add dots first.'; return; }
-
+  const srcSeq=buildSequence(); if (!srcSeq.length){ $('status').textContent='Draw a path or add dots first.'; return; }
   ensureAudio(); await ac.resume();
-  playing=true; seqIdx=0; seq=srcSeq;
-  $('stop').disabled=false; $('play').disabled=true; $('status').textContent='Playing…';
+  playing=true; let seqIdx=0; $('stop').disabled=false; $('play').disabled=true; $('status').textContent='Playing…';
 
   const key=$('key').value, scale=$('scale').value;
   const baseOct=parseInt($('baseOct').value||'3',10);
   const octaves=parseInt($('octaves').value||'4',10);
   const midiList=buildScaleMidi(key, scale, baseOct, octaves);
 
-  const pps=parseInt($('pps').value,10);
-  const stepSec=1/pps;
+  const pps=parseInt($('pps').value,10), stepSec=1/pps;
   const noteMs=Math.max(20, Math.min(800, parseInt($('ms').value||'120',10)));
   const noteDur=Math.min(stepSec*0.95, noteMs/1000);
   const dets=[parseFloat($('detR').value||'0'), parseFloat($('detG').value||'0'), parseFloat($('detB').value||'0')];
-
   const lookahead=0.1, ahead=0.25;
-  let nextTime = ac.currentTime + 0.05;
+  let nextTime=ac.currentTime+0.05;
+
+  function schedulePixelChord(time, r,g,b){
+    const mids=[valueToMidi(r,midiList), valueToMidi(g,midiList), valueToMidi(b,midiList)];
+    const env=ac.createGain(); env.gain.setValueAtTime(0,time); env.gain.linearRampToValueAtTime(1,time+0.01); env.gain.exponentialRampToValueAtTime(0.001,time+noteDur); env.connect(master);
+    const parts=[[1,+mix1.value],[2,+mix2.value],[3,+mix3.value]];
+    mids.forEach((m,i)=>{
+      const baseF=midiToFreq(m);
+      parts.forEach(([mul,g])=>{
+        if (g<=0) return; const f=baseF*mul; if (f >= ac.sampleRate/2-100) return;
+        const osc=ac.createOscillator(); osc.type='sine'; osc.frequency.setValueAtTime(f,time); osc.detune.setValueAtTime(dets[i]||0,time);
+        const gNode=ac.createGain(); gNode.gain.value=g; osc.connect(gNode).connect(env); osc.start(time); osc.stop(time+noteDur+0.02);
+      });
+    });
+  }
 
   function loop(){
     if (!playing) return;
     while (nextTime < ac.currentTime + ahead) {
-      if (seqIdx >= seq.length) { stopPlayback(); return; }
-      const [x,y] = seq[seqIdx];
-      const [r,g,b] = getRGBat(x,y);
-      schedulePixelChord(nextTime, r,g,b, midiList, noteDur, dets);
+      if (seqIdx >= srcSeq.length){ stopPlayback(); return; }
+      const [x,y]=srcSeq[seqIdx];
+      const [r,g,b]=getRGBat(x,y);
+      schedulePixelChord(nextTime, r,g,b);
       drawCursor([x,y]);
-      seqIdx++;
-      nextTime += stepSec;
+      seqIdx++; nextTime += stepSec;
     }
     timer = setTimeout(loop, lookahead*1000);
   }
@@ -477,10 +414,8 @@ $('play').addEventListener('click', async ()=>{
 });
 
 function stopPlayback(){
-  if(!playing) return;
-  playing=false; if(timer) clearTimeout(timer);
-  $('status').textContent='Stopped.'; $('play').disabled=false; $('stop').disabled=true;
-  drawCursor(null);
+  playing=false; if (timer) clearTimeout(timer);
+  $('status').textContent='Stopped.'; $('play').disabled=false; $('stop').disabled=true; drawCursor(null);
 }
 $('stop').addEventListener('click', stopPlayback);
 </script>
