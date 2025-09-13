@@ -15,13 +15,13 @@
   }
   #drawCanvas { pointer-events:auto; }
   #toolbar {
-    position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 102px); z-index:10;
+    position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 110px); z-index:10;
     background:var(--panel); border:1px solid var(--b); border-radius:12px; padding:10px; backdrop-filter: blur(6px);
     max-width:min(92vw, 560px);
     max-height: calc(100dvh - (env(safe-area-inset-top) + 68px) - 16px);
     overflow: auto; -webkit-overflow-scrolling: touch;
   }
-  #toggle { position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 65px); z-index:11; border:none; border-radius:999px; padding:10px 12px; background:var(--panel); color:#fff; cursor:pointer; backdrop-filter: blur(6px); }
+  #toggle { position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 73px); z-index:11; border:none; border-radius:999px; padding:10px 12px; background:var(--panel); color:#fff; cursor:pointer; backdrop-filter: blur(6px); }
   #toggle small { opacity:.8; }
   #toolbar[hidden]{ display:none; }
   .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
@@ -293,6 +293,51 @@ function ensureAudio() {
   }
 }
 
+// Strong unlock: fire multiple audible nodes in the same gesture
+function hardUnlockBeep() {
+  if (!ac || !master) return;
+  const t = ac.currentTime + 0.01;
+
+  // 1) Oscillator blip
+  {
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.25, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + 0.20);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(660, t);
+    osc.connect(g).connect(master);
+    osc.start(t);
+    osc.stop(t + 0.25);
+  }
+
+  // 2) 1-frame non-zero buffer (ensures real sample data goes through)
+  {
+    const buf = ac.createBuffer(1, 2048, ac.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) ch[i] = Math.sin(2 * Math.PI * 440 * (i / ac.sampleRate)) * 0.1;
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    src.connect(master);
+    src.start(t + 0.02);
+    src.stop(t + 0.07);
+  }
+
+  // 3) ConstantSource short tick (some WebKit builds “wake up” on this)
+  {
+    const cs = new (window.ConstantSourceNode || function(ctx){ const o=ctx.createOscillator(); o.frequency.value=0; return o; })(ac);
+    const g2 = ac.createGain();
+    g2.gain.setValueAtTime(0.0001, t);
+    g2.gain.linearRampToValueAtTime(0.15, t + 0.01);
+    g2.gain.exponentialRampToValueAtTime(0.0008, t + 0.05);
+    (cs.offset || { setValueAtTime: ()=>{} }).setValueAtTime?.(1, t);
+    cs.connect(g2).connect(master);
+    cs.start?.(t + 0.01);
+    cs.stop?.(t + 0.06);
+  }
+}
+
 function testBeep() {
   if (!ac || !master) return;
   const t = ac.currentTime + 0.01;
@@ -309,28 +354,29 @@ function testBeep() {
 }
 
 
-// status button behavior (makes it gesture-clickable on mobile)
+// status button behavior (stubborn unlock in one gesture)
 const statusEl = document.getElementById('status');
 if (statusEl) statusEl.textContent = 'Enable sound';
 
-async function doEnableSound() {
+async function doEnableSoundStrong() {
   try {
-    await unlockAudio();
+    await unlockAudio();            // create/resume context
     ensureAudio();
-    testBeep(); // <- play an audible blip to fully open the audio path
+    hardUnlockBeep();               // fire 3 audible probes
+    // small safety resume after starting nodes (covers a few WebKit quirks)
+    try { await ac.resume(); } catch(e){}
     statusEl.textContent = (ac && ac.state) ? `Audio ready (${ac.state})` : 'Audio ready';
-    statusEl.disabled = true; // optional: prevent repeated clicks
+    statusEl.disabled = true;
   } catch (err) {
     statusEl.textContent = 'Enable failed';
     console.error('Audio unlock error:', err);
   }
 }
 
-statusEl?.addEventListener('click', doEnableSound);
-
+statusEl?.addEventListener('click', doEnableSoundStrong);
 statusEl?.addEventListener('touchstart', (e) => {
-  e.preventDefault(); // ensure click fires on iOS
-  doEnableSound();
+  e.preventDefault();               // ensure click fires on iOS
+  doEnableSoundStrong();
 }, { passive: false });
 
 // Keep the old global one-time unlock too (no harm if button used)
