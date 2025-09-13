@@ -269,7 +269,7 @@ let ac=null, master=null, playing=false, timer=null, seq=[], seqIdx=0;
 async function unlockAudio() {
   if (!ac) {
     const Ctx = window.AudioContext || window.webkitAudioContext;
-    ac = new Ctx({ latencyHint: 'interactive' });
+    ac = new Ctx({ latencyHint: 'interactive', sampleRate: 44100 });
     master = ac.createGain();
     master.gain.value = +gainEl.value;
     master.connect(ac.destination);
