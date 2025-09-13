@@ -280,7 +280,20 @@ async function unlockAudio() {
     ac = new Ctx();
     master = ac.createGain();
     master.gain.value = +gainEl.value;
-    master.connect(ac.destination);
+    
+    // master.connect(ac.destination);
+    const hp = ac.createBiquadFilter();         // removes DC / subsonic junk
+    hp.type = 'highpass';
+    hp.frequency.value = 30;
+
+    const comp = ac.createDynamicsCompressor(); // tames overlapping bursts
+    comp.threshold.value = -24;
+    comp.knee.value = 30;
+    comp.ratio.value = 12;
+    comp.attack.value = 0.003;
+    comp.release.value = 0.25;
+
+    master.connect(hp).connect(comp).connect(ac.destination);
   }
   try {
     const silent = ac.createBuffer(1, 1, ac.sampleRate);
@@ -375,7 +388,20 @@ function doEnableSoundStrong() {
       ac = new Ctx();
       master = ac.createGain();
       master.gain.value = +gainEl.value || 0.25;
-      master.connect(ac.destination);
+
+      // master.connect(ac.destination);
+      const hp = ac.createBiquadFilter();         // removes DC / subsonic junk
+      hp.type = 'highpass';
+      hp.frequency.value = 30;
+
+      const comp = ac.createDynamicsCompressor(); // tames overlapping bursts
+      comp.threshold.value = -24;
+      comp.knee.value = 30;
+      comp.ratio.value = 12;
+      comp.attack.value = 0.003;
+      comp.release.value = 0.25;
+
+      master.connect(hp).connect(comp).connect(ac.destination);
     }
 
     // Start an immediate, audible blip *before* any Promise microtask
@@ -466,9 +492,22 @@ function playPixelNow(x,y, velocity=1){
 
   const env=ac.createGain(); const sus=$('sustain').checked;
   const peak = Math.max(0.02, Math.min(1, velocity)) ;
+
+  // env.gain.setValueAtTime(0, t);
+  // env.gain.linearRampToValueAtTime(peak, t+0.01);
+  // if (sus){ env.gain.setValueAtTime(peak, t+dur); } else { env.gain.exponentialRampToValueAtTime(0.001, t+dur); }
+  // env.connect(master);
+  const attack = 0.02;                      // ~20ms = clickless but still snappy
+  const offFloor = 0.001;                   // never ramp to true zero (iOS denormal-safe)
   env.gain.setValueAtTime(0, t);
-  env.gain.linearRampToValueAtTime(peak, t+0.01);
-  if (sus){ env.gain.setValueAtTime(peak, t+dur); } else { env.gain.exponentialRampToValueAtTime(0.001, t+dur); }
+  env.gain.linearRampToValueAtTime(peak, t + attack);
+  if (sus) {
+    // hold at peak; release will be managed by sustain off / voice stop
+    env.gain.setValueAtTime(peak, t + attack + Math.max(0, dur - attack));
+  } else {
+    // short, smooth tail to avoid hard cut
+    env.gain.exponentialRampToValueAtTime(offFloor, t + Math.max(dur, attack + 0.02));
+  }
   env.connect(master);
 
   const parts=[[1,+mix1.value],[2,+mix2.value],[3,+mix3.value]];
@@ -584,3 +623,32 @@ $('stop').addEventListener('click', stopPlayback);
 </script>
 </body>
 </html>
+
+<script>
+// === Default image loader (uses the same steps as the file input) ===
+async function loadDefaultImage(src){
+  try {
+    const img = new Image();
+    img.src = src;                 // e.g., 'default.jpg' in the same folder
+    await img.decode();
+
+    // mirror your file-change logic
+    imgW = img.naturalWidth; imgH = img.naturalHeight;
+    setCanvasIntrinsicSize(imgW, imgH);
+    imgCtx.drawImage(img, 0, 0, imgW, imgH);
+    imageData = imgCtx.getImageData(0,0,imgW,imgH);
+    $('imgInfo').textContent = src.split('/').pop();
+    $('dim').textContent = `${imgW}×${imgH}px`;
+    $('makeArray').disabled = false; $('play').disabled = false; $('download').disabled = true;
+    pathPts = []; dots = []; redrawOverlay(); $('pathCount').textContent='0'; $('dotCount').textContent='0';
+    $('status').textContent='Enable sound';
+  } catch (e) {
+    console.warn('Default image failed to load:', e);
+  }
+}
+
+// Load once the DOM is ready
+document.addEventListener('DOMContentLoaded', ()=>{
+  loadDefaultImage('NGC6543-BYU-L.jpg');
+});
+</script>
