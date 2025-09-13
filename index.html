@@ -293,17 +293,44 @@ function ensureAudio() {
   }
 }
 
+function testBeep() {
+  if (!ac || !master) return;
+  const t = ac.currentTime + 0.01;
+  const osc = ac.createOscillator();
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.2, t + 0.02);   // short attack
+  g.gain.exponentialRampToValueAtTime(0.0008, t + 0.25); // quick decay
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(440, t); // A4 blip
+  osc.connect(g).connect(master);
+  osc.start(t);
+  osc.stop(t + 0.3);
+}
+
+
 // status button behavior (makes it gesture-clickable on mobile)
 const statusEl = document.getElementById('status');
 if (statusEl) statusEl.textContent = 'Enable sound';
-statusEl?.addEventListener('click', async () => {
-  await unlockAudio();
-  statusEl.textContent = 'Audio ready';
-});
-statusEl?.addEventListener('touchstart', async (e) => {
+
+async function doEnableSound() {
+  try {
+    await unlockAudio();
+    ensureAudio();
+    testBeep(); // <- play an audible blip to fully open the audio path
+    statusEl.textContent = (ac && ac.state) ? `Audio ready (${ac.state})` : 'Audio ready';
+    statusEl.disabled = true; // optional: prevent repeated clicks
+  } catch (err) {
+    statusEl.textContent = 'Enable failed';
+    console.error('Audio unlock error:', err);
+  }
+}
+
+statusEl?.addEventListener('click', doEnableSound);
+
+statusEl?.addEventListener('touchstart', (e) => {
   e.preventDefault(); // ensure click fires on iOS
-  await unlockAudio();
-  statusEl.textContent = 'Audio ready';
+  doEnableSound();
 }, { passive: false });
 
 // Keep the old global one-time unlock too (no harm if button used)
