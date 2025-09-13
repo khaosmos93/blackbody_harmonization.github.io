@@ -15,10 +15,12 @@
   }
   #drawCanvas { pointer-events:auto; }
   #toolbar {
-    position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 68px); z-index:10;
-    background:var(--panel); border:1px solid var(--b); border-radius:12px; padding:10px; backdrop-filter: blur(6px);
-    max-width:min(92vw, 560px);
-  }
+  position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 68px); z-index:10;
+  background:var(--panel); border:1px solid var(--b); border-radius:12px; padding:10px; backdrop-filter: blur(6px);
+  max-width:min(92vw, 560px);
+  max-height: calc(100dvh - (env(safe-area-inset-top) + 68px) - 16px);
+  overflow: auto; -webkit-overflow-scrolling: touch;
+}
   #toggle { position:absolute; left:12px; top:calc(env(safe-area-inset-top) + 32px); z-index:11; border:none; border-radius:999px; padding:10px 12px; background:var(--panel); color:#fff; cursor:pointer; backdrop-filter: blur(6px); }
   #toggle small { opacity:.8; }
   #toolbar[hidden]{ display:none; }
@@ -49,8 +51,8 @@
         <strong>Blackbody Harmonization</strong>
         <span class="pill mono" id="dim">—</span>
         <span class="pill mono">Pixels/sec: <span id="ppsVal">3</span></span>
-        <!-- moved status to the top bar -->
-        <span id="status" class="muted mono">Enable sound</span>
+        <!-- status is now a button (clickable on mobile) -->
+        <button id="status" type="button" class="pill mono">Enable sound</button>
       </div>
 
       <div class="col" style="gap:10px">
@@ -58,7 +60,7 @@
         <div class="row">
           <label><input type="checkbox" id="live" checked> Live mode (play under cursor)</label>
           <label>Brush(px) <input id="brush" type="number" min="0" max="50" value="2" style="width:70px"></label>
-          <label><input type="checkbox" id="sustain"> Sustain</label>
+          <label><input type="checkbox" id="sustain" checked> Sustain</label>
           <span class="muted mono">Tip: press harder on stylus/touch for louder notes</span>
         </div>
 
@@ -291,10 +293,20 @@ function ensureAudio() {
   }
 }
 
-// Put the initial hint at the top and change text
+// status button behavior (makes it gesture-clickable on mobile)
 const statusEl = document.getElementById('status');
 if (statusEl) statusEl.textContent = 'Enable sound';
+statusEl?.addEventListener('click', async () => {
+  await unlockAudio();
+  statusEl.textContent = 'Audio ready';
+});
+statusEl?.addEventListener('touchstart', async (e) => {
+  e.preventDefault(); // ensure click fires on iOS
+  await unlockAudio();
+  statusEl.textContent = 'Audio ready';
+}, { passive: false });
 
+// Keep the old global one-time unlock too (no harm if button used)
 const firstGesture = async () => {
   await unlockAudio();
   if (statusEl) statusEl.textContent = 'Audio ready';
