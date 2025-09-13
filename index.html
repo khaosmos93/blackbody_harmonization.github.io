@@ -270,7 +270,7 @@ let ac=null, master=null, playing=false, timer=null, seq=[], seqIdx=0;
 async function unlockAudio() {
   if (!ac) {
     const Ctx = window.AudioContext || window.webkitAudioContext;
-    ac = new Ctx({ latencyHint: 'interactive', sampleRate: 44100 });
+    ac = new Ctx(); // ← minimal constructor for iOS reliability
     master = ac.createGain();
     master.gain.value = +gainEl.value;
     master.connect(ac.destination);
@@ -325,7 +325,7 @@ function hardUnlockBeep() {
     src.stop(t + 0.07);
   }
 
-  // 3) ConstantSource short tick (some WebKit builds “wake up” on this)
+  // 3) ConstantSource short tick
   {
     const cs = new (window.ConstantSourceNode || function(ctx){ const o=ctx.createOscillator(); o.frequency.value=0; return o; })(ac);
     const g2 = ac.createGain();
@@ -345,10 +345,10 @@ function testBeep() {
   const osc = ac.createOscillator();
   const g = ac.createGain();
   g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(0.2, t + 0.02);   // short attack
-  g.gain.exponentialRampToValueAtTime(0.0008, t + 0.25); // quick decay
+  g.gain.linearRampToValueAtTime(0.2, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0008, t + 0.25);
   osc.type = 'sine';
-  osc.frequency.setValueAtTime(440, t); // A4 blip
+  osc.frequency.setValueAtTime(440, t);
   osc.connect(g).connect(master);
   osc.start(t);
   osc.stop(t + 0.3);
@@ -370,7 +370,7 @@ async function doEnableSoundStrong() {
       const osc = ac.createOscillator();
       const g   = ac.createGain();
       osc.type = 'sine';
-      osc.frequency.value = 1000;     // 1 kHz = very audible on phone speakers
+      osc.frequency.value = 1000;     // very audible on phone speakers
       g.gain.setValueAtTime(0.001, now);
       g.gain.linearRampToValueAtTime(0.5,  now + 0.03);
       g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
@@ -379,7 +379,7 @@ async function doEnableSoundStrong() {
       osc.stop(now + 0.45);
     }
 
-    // Keep your multi-probe unlock too (runs alongside the immediate blip)
+    // Keep multi-probe unlock too
     hardUnlockBeep();
 
     // Safety resume after starting nodes (covers WebKit quirks)
@@ -394,7 +394,7 @@ async function doEnableSoundStrong() {
 
 statusEl?.addEventListener('click', doEnableSoundStrong);
 statusEl?.addEventListener('touchstart', (e) => {
-  e.preventDefault();               // ensure click fires on iOS
+  e.preventDefault();
   doEnableSoundStrong();
 }, { passive: false });
 statusEl?.addEventListener('touchend', (e) => {
@@ -402,14 +402,7 @@ statusEl?.addEventListener('touchend', (e) => {
   doEnableSoundStrong();
 }, { passive: false });
 
-// Keep the old global one-time unlock too (no harm if button used)
-const firstGesture = async () => {
-  await unlockAudio();
-  if (statusEl) statusEl.textContent = 'Audio ready';
-};
-['pointerdown','touchstart','keydown'].forEach(ev =>
-  document.addEventListener(ev, firstGesture, { once:true, passive:true })
-);
+// (Removed the old global one-time auto-unlock to avoid stealing the first tap)
 
 document.addEventListener('visibilitychange', async () => {
   if (!ac) return;
